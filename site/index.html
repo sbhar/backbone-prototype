@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8"/>
+        <title>Backbone.js Library</title>
+        <style>
+			body {
+				background-color: #eee;
+			}
+
+			.bookContainer {
+				outline: 1px solid #aaa;
+				width: 350px;
+				height: 130px;
+				background-color: #fff;
+				float: left;
+				margin: 5px;
+			}
+
+			.bookContainer img {
+				float: left;
+				margin: 10px;
+			}
+
+			.bookContainer ul {
+				list-style-type: none;
+				margin-bottom: 0;
+			}
+
+			.bookContainer button {
+				float: right;
+				margin: 10px;
+			}
+
+			#addBook label {
+				width: 100px;
+				margin-right: 10px;
+				text-align: right;
+				line-height: 25px;
+			}
+
+			#addBook label, #addBook input {
+				display: block;
+				margin-bottom: 10px;
+				float: left;
+			}
+
+			#addBook label[for="title"], #addBook label[for="releaseDate"] {
+				clear: both;
+			}
+
+			#addBook button {
+				display: block;
+				margin: 5px 20px 10px 10px;
+				float: right;
+				clear: both;
+			}
+
+			#addBook div {
+				width: 550px;
+			}
+
+			#addBook div:after {
+				content: "";
+				display: block;
+				height: 0;
+				visibility: hidden;
+				clear: both;
+				font-size: 0;
+				line-height: 0;
+			}
+		</style>
+		<link rel="stylesheet" href="https://code.jquery.com/ui/1.11.3/themes/smoothness/jquery-ui.css">
+    </head>
+    <body>
+        <script src='js/jquery.min.js'></script>
+		<script src='https://code.jquery.com/ui/1.11.3/jquery-ui.min.js'></script>
+		<script src='js/underscore-min.js'></script>
+        <script src="js/backbone-min.js"></script>
+		
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-dateFormat/1.0/jquery.dateFormat.js"></script>
+    
+        <script>
+			// site/js/models/book.js
+			// a model of a book 
+			var app = app || {};
+
+			app.Book = Backbone.Model.extend({
+				defaults: {
+					coverImage: 'img/placeholder.png',
+					title: 'No title',
+					author: 'Unknown',
+					releaseDate: 'Unknown',
+					keywords: 'None',
+					
+				},
+				parse: function( response ) {
+					response.id = response._id;
+					return response;
+				}
+			});
+			
+			// site/js/collections/library.js
+			// a collection to hold the list 
+			/*app.Library = Backbone.Collection.extend({
+				model: app.Book
+			});*/
+			app.Library = Backbone.Collection.extend({
+				model: app.Book,
+				url: '/api/books'     // NEW
+			});
+			
+			// site/js/views/library.js
+			// We’ll also need a view for the list itself:
+			app.LibraryView = Backbone.View.extend({
+				el: '#books',
+
+				/*initialize: function( initialBooks ) {
+					
+					this.collection = new app.Library( initialBooks );
+					this.listenTo( this.collection, 'add', this.renderBook );
+					this.render();
+				},*/
+				
+				initialize: function() {
+					this.collection = new app.Library();
+					this.collection.fetch({reset: true}); // NEW
+					this.render();
+
+					this.listenTo( this.collection, 'add', this.renderBook );
+					this.listenTo( this.collection, 'reset', this.render ); // NEW
+				},
+				
+				events:{
+				'click #add':'addBook'
+				},
+
+				addBook: function( e ) {
+					e.preventDefault();
+
+					var formData = {};
+
+					$( '#addBook div' ).children( 'input' ).each( function( i, el ) {
+						if( $( el ).val() != '' )
+						{
+							if( el.id === 'keywords' ) {
+								formData[ el.id ] = [];
+								_.each( $( el ).val().split( ' ' ), function( keyword ) {
+									formData[ el.id ].push({ 'keyword': keyword });
+								});
+							} else if( el.id === 'releaseDate' ) {
+								formData[ el.id ] = $( '#releaseDate' ).datepicker( 'getDate' ).getTime();
+							} else {
+								formData[ el.id ] = $( el ).val();
+							}
+						}
+						// Clear input field value
+						$( el ).val('');
+					});
+
+					this.collection.create( formData );
+				},
+				
+				
+
+				// render library by rendering each book in its collection
+				render: function() {
+					this.collection.each(function( item ) {
+						this.renderBook( item );
+					}, this );
+				},
+
+				// render a book by creating a BookView and appending the
+				// element it renders to the library's element
+				renderBook: function( item ) {
+					var bookView = new app.BookView({
+						model: item
+					});
+					console.log(bookView.render() + '-' + bookView.render().el );
+					this.$el.append( bookView.render().el );
+				}
+			});
+			
+			// site/js/views/book.js
+			// in order to display books we’ll need a view:
+			 $(function() {
+				app.BookView = Backbone.View.extend({
+					tagName: 'div',
+					className: 'bookContainer',
+					template: _.template( $( '#bookTemplate' ).html() ),
+					events: {
+						'click .delete': 'deleteBook'
+					},
+
+					deleteBook: function() {
+						//Delete model
+						this.model.destroy();
+
+						//Delete view
+						this.remove();
+					},
+
+					render: function() {
+						//this.el is what we defined in tagName. use $el to get access to jQuery html() function
+						this.$el.html( this.template( this.model.attributes ) );
+
+						return this;
+					}
+						
+				});
+				
+				/*var books = [
+					{ title: 'JavaScript: The Good Parts', author: 'Douglas Crockford', releaseDate: '2008', keywords: 'JavaScript Programming', 	coverImage: 'img/placeholder_green.png'},
+					{ title: 'The Little Book on CoffeeScript', author: 'Alex MacCaw', releaseDate: '2012', keywords: 'CoffeeScript Programming' },
+					{ title: 'Scala for the Impatient', author: 'Cay S. Horstmann', releaseDate: '2012', keywords: 'Scala Programming' },
+					{ title: 'American Psycho', author: 'Bret Easton Ellis', releaseDate: '1991', keywords: 'Novel Splatter' },
+					{ title: 'Eloquent JavaScript', author: 'Marijn Haverbeke', releaseDate: '2011', keywords: 'JavaScript Programming' }
+				];
+
+				new app.LibraryView( books );*/
+				 $( '#releaseDate' ).datepicker();
+				new app.LibraryView();
+				
+			});
+		
+		</script>
+		
+		<script id="bookTemplate" type="text/template">
+			<img src="<%= coverImage %>"/>
+			<ul>
+				<li><%= title %></li>
+				<li><%= author %></li>
+				<!--<li><%= releaseDate %></li>-->
+				<li><%= $.format.date( new Date( releaseDate ), 'MMMM yyyy' ) %></li>
+				<!--<li><%= keywords %></li>-->
+				<li><% _.each( keywords, function( keyobj ) {%> <%= keyobj.keyword %><% } ); %></li>
+			</ul>
+
+			<button class="delete">Delete</button>
+		</script>
+		
+		<div id="books">
+			<form id="addBook" action="#">
+				<div>
+					<label for="coverImage">CoverImage: </label><input id="coverImage" type="file" />
+					<label for="title">Title: </label><input id="title" type="text" />
+					<label for="author">Author: </label><input id="author" type="text" />
+					<label for="releaseDate">Release date: </label><input id="releaseDate" type="text" />
+					<label for="keywords">Keywords: </label><input id="keywords" type="text" />
+					<button id="add">Add</button>
+				</div>
+			</form>
+		</div>
+		
+		
+		
+		
+    </body>
+</html>
